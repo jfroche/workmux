@@ -122,6 +122,21 @@ brew install raine/workmux/workmux
 <details>
 <summary>Other methods (Cargo, mise, Nix)</summary>
 
+### Nix
+
+```bash
+# Quick install
+nix profile install github:raine/workmux
+
+# Or try without installing
+nix shell github:raine/workmux
+```
+
+For NixOS/home-manager integration, including a declarative home-manager module with
+full configuration options, see **[nix/README.md](nix/README.md)**.
+
+### Cargo
+
 **Cargo** (requires [rustup](https://rustup.rs/)):
 
 ```bash
