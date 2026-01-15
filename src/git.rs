@@ -32,6 +32,36 @@ pub fn is_git_repo() -> Result<bool> {
         .run_as_check()
 }
 
+/// Check if we're in a jujutsu (jj) colocated repository.
+pub fn is_jj_repo() -> bool {
+    Path::new(".jj").exists()
+}
+
+/// Get the nearest bookmark from jj ancestors.
+/// Returns the first bookmark found in the ancestor chain of the current commit.
+pub fn get_jj_nearest_bookmark() -> Result<Option<String>> {
+    let output = Cmd::new("jj")
+        .args(&[
+            "log",
+            "-r",
+            "::@ & bookmarks()",
+            "--no-graph",
+            "-T",
+            "local_bookmarks",
+            "-n",
+            "1",
+        ])
+        .run_and_capture_stdout()
+        .context("Failed to get jj bookmark")?;
+
+    let bookmark = output.trim();
+    if bookmark.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(bookmark.to_string()))
+    }
+}
+
 /// Check if the repository has any commits (HEAD is valid)
 pub fn has_commits() -> Result<bool> {
     Cmd::new("git")

@@ -128,13 +128,24 @@ pub fn create(context: &WorkflowContext, args: CreateArgs) -> Result<CreateResul
             let current_branch = current_branch.trim().to_string();
 
             if current_branch.is_empty() {
-                return Err(anyhow!(
-                    "Cannot determine current branch (detached HEAD). \
-                     Use --base to explicitly specify the starting point."
-                ));
+                // In jj repos (detached HEAD), find the nearest bookmark as base
+                if git::is_jj_repo() {
+                    if let Some(bookmark) = git::get_jj_nearest_bookmark()? {
+                        debug!(bookmark = %bookmark, "create:jj repo, using nearest bookmark as base");
+                        Some(bookmark)
+                    } else {
+                        debug!("create:jj repo, no bookmark found, using main branch");
+                        Some(context.main_branch.clone())
+                    }
+                } else {
+                    return Err(anyhow!(
+                        "Cannot determine current branch (detached HEAD). \
+                         Use --base to explicitly specify the starting point."
+                    ));
+                }
+            } else {
+                Some(current_branch)
             }
-
-            Some(current_branch)
         }
     } else {
         None
@@ -153,17 +164,25 @@ pub fn create(context: &WorkflowContext, args: CreateArgs) -> Result<CreateResul
             context.main_worktree_root.join(path)
         }
     } else {
-        // Default behavior: <main_worktree_root>/../<project_name>__worktrees
-        let project_name = context
-            .main_worktree_root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| anyhow!("Could not determine project name"))?;
-        context
+        // Auto-detect: check if this is a .bare repo structure (tms-style)
+        let parent = context
             .main_worktree_root
             .parent()
-            .ok_or_else(|| anyhow!("Could not determine parent directory"))?
-            .join(format!("{}__worktrees", project_name))
+            .ok_or_else(|| anyhow!("Could not determine parent directory"))?;
+
+        if parent.join(".bare").exists() {
+            // .bare repo: place worktrees as siblings to main worktree
+            debug!("create:detected .bare repo, placing worktrees as siblings");
+            parent.to_path_buf()
+        } else {
+            // Default behavior: <main_worktree_root>/../<project_name>__worktrees
+            let project_name = context
+                .main_worktree_root
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| anyhow!("Could not determine project name"))?;
+            parent.join(format!("{}__worktrees", project_name))
+        }
     };
     // Use handle for the worktree directory name (not branch_name)
     let worktree_path = base_dir.join(handle);
