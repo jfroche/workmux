@@ -58,7 +58,18 @@ pub fn get_jj_nearest_bookmark() -> Result<Option<String>> {
     if bookmark.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(bookmark.to_string()))
+        // local_bookmarks template outputs space-separated names when multiple bookmarks
+        // point to the same commit (e.g., "fix-wt-cleanup master"). Prefer canonical main
+        // branches, otherwise take the first one.
+        let bookmarks: Vec<&str> = bookmark.split_whitespace().collect();
+        let preferred = ["main", "master", "develop"];
+        let selected = bookmarks
+            .iter()
+            .find(|b| preferred.contains(b))
+            .or(bookmarks.first())
+            .copied()
+            .unwrap_or(bookmark);
+        Ok(Some(selected.to_string()))
     }
 }
 
