@@ -150,8 +150,9 @@ struct JsonWorktree {
 pub fn run(show_pr: bool, json: bool, filter: &[String]) -> Result<()> {
     let config = config::Config::load(None)?;
     let mux = create_backend(detect_backend());
+    let vcs = crate::vcs::detect_vcs()?;
     // Skip PR fetch when outputting JSON since it's not included in the JSON schema
-    let worktrees = workflow::list(&config, mux.as_ref(), show_pr && !json, filter)?;
+    let worktrees = workflow::list(&config, mux.as_ref(), vcs.as_ref(), show_pr && !json, filter)?;
 
     if worktrees.is_empty() {
         if json {

@@ -141,7 +141,7 @@ pub trait Vcs: Send + Sync {
     // ── Status ───────────────────────────────────────────────────────
 
     /// Get full VCS status for a workspace (for dashboard display)
-    fn get_status(&self, worktree: &Path) -> VcsStatus;
+    fn get_status(&self, worktree: &Path, main_branch: Option<&str>) -> VcsStatus;
 
     /// Check if the workspace has any uncommitted changes
     fn has_uncommitted_changes(&self, worktree: &Path) -> Result<bool>;

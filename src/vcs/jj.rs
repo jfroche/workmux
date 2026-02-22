@@ -177,7 +177,7 @@ impl Vcs for JjVcs {
 
     // ── Status ───────────────────────────────────────────────────────
 
-    fn get_status(&self, _worktree: &Path) -> VcsStatus {
+    fn get_status(&self, _worktree: &Path, _main_branch: Option<&str>) -> VcsStatus {
         VcsStatus::default() // TODO: implement jj status
     }
 

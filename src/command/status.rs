@@ -10,6 +10,7 @@ use tabled::{
 
 use crate::git;
 use crate::multiplexer::{AgentStatus, create_backend, detect_backend};
+use crate::vcs;
 use crate::state::StateStore;
 use crate::util;
 use crate::workflow;
@@ -135,6 +136,8 @@ pub fn run(worktrees: &[String], json: bool, show_git: bool) -> Result<()> {
         return Ok(());
     }
 
+    let vcs = vcs::detect_vcs()?;
+
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -144,14 +147,14 @@ pub fn run(worktrees: &[String], json: bool, show_git: bool) -> Result<()> {
 
     if worktrees.is_empty() {
         // No specific targets: show all agents in the local repo (existing behavior)
-        let all_worktrees = git::list_worktrees()?;
+        let all_worktrees = vcs.list_workspaces()?;
 
         // Get unmerged info if --git flag (scoped to current repo)
         let unmerged_branches = if show_git {
-            git::get_default_branch()
+            vcs.get_default_branch()
                 .ok()
-                .and_then(|main| git::get_merge_base(&main).ok())
-                .and_then(|base| git::get_unmerged_branches(&base).ok())
+                .and_then(|main| vcs.get_merge_base(&main).ok())
+                .and_then(|base| vcs.get_unmerged_branches(&base).ok())
                 .unwrap_or_default()
         } else {
             std::collections::HashSet::new()
@@ -171,8 +174,8 @@ pub fn run(worktrees: &[String], json: bool, show_git: bool) -> Result<()> {
 
             let git_info = if show_git {
                 Some(GitInfo {
-                    has_staged: git::has_staged_changes(wt_path).unwrap_or(false),
-                    has_unstaged: git::has_unstaged_changes(wt_path).unwrap_or(false),
+                    has_staged: vcs.has_staged_changes(wt_path).unwrap_or(false),
+                    has_unstaged: vcs.has_unstaged_changes(wt_path).unwrap_or(false),
                     has_unmerged_commits: unmerged_branches.contains(branch),
                 })
             } else {

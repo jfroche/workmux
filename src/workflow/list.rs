@@ -3,10 +3,12 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::config::MuxMode;
+use crate::git;
 use crate::multiplexer::{Multiplexer, util};
 use crate::state::StateStore;
 use crate::util::canon_or_self;
-use crate::{config, git, github, spinner};
+use crate::vcs::Vcs;
+use crate::{config, github, spinner};
 
 use super::types::{AgentStatusSummary, WorktreeInfo};
 
@@ -54,13 +56,21 @@ fn filter_worktrees(
 pub fn list(
     config: &config::Config,
     mux: &dyn Multiplexer,
+    vcs: &dyn Vcs,
     fetch_pr_status: bool,
     filter: &[String],
 ) -> Result<Vec<WorktreeInfo>> {
+    if !vcs.is_repo()? {
+        return Err(anyhow!("Not in a {} repository", vcs.name()));
+    }
     list_in(config, mux, fetch_pr_status, filter, None)
 }
 
-/// List all worktrees with their status, optionally for a specific repo path
+/// List all worktrees with their status, optionally for a specific repo path.
+///
+/// When `repo` is `Some`, this is the git-only multi-project code path used
+/// by the dashboard project picker. When `repo` is `None`, operates on the
+/// current repository (which may also be a jj repo via the git backing store).
 pub fn list_in(
     config: &config::Config,
     mux: &dyn Multiplexer,

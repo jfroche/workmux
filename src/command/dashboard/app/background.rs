@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::git;
+use crate::vcs;
 
 use super::super::agent;
 use super::App;
@@ -44,8 +44,12 @@ impl App {
             }
             let _reset = ResetFlag(is_fetching);
 
+            let vcs = vcs::try_detect_vcs();
             for path in paths {
-                let status = git::get_git_status(&path, main_branch.as_deref());
+                let status = vcs
+                    .as_ref()
+                    .map(|v| v.get_status(&path, main_branch.as_deref()))
+                    .unwrap_or_default();
                 let _ = tx.send(AppEvent::GitStatus(path, status));
             }
         });

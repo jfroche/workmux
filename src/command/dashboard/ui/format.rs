@@ -14,7 +14,7 @@ pub fn truncate(s: &str, max_len: usize) -> String {
 }
 
 use crate::config::StatusIcons;
-use crate::git::GitStatus;
+use crate::vcs::VcsStatus;
 use crate::github::PrSummary;
 use crate::multiplexer::AgentStatus;
 use crate::nerdfont;
@@ -157,7 +157,7 @@ fn add_uncommitted_spans(
 /// Format: "→branch +N -M 󰏫 +X -Y 󰀪 ↑A ↓B"
 /// When there are uncommitted changes that differ from total, branch totals are dimmed
 pub fn format_git_status(
-    status: Option<&GitStatus>,
+    status: Option<&VcsStatus>,
     spinner_frame: u8,
     palette: &ThemePalette,
 ) -> Vec<(String, Style)> {

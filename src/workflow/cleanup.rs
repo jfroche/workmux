@@ -7,11 +7,8 @@ use std::{thread, time::Duration};
 use crate::config::MuxMode;
 use crate::multiplexer::{Multiplexer, WindowTarget, util::prefixed};
 use crate::shell::shell_quote;
-use crate::{cmd, git};
+use crate::cmd;
 use tracing::{debug, info, warn};
-
-// Re-export for use by other modules in the workflow
-pub use git::get_worktree_mode;
 
 use super::context::WorkflowContext;
 use super::types::{CleanupResult, DeferredCleanup};
@@ -227,7 +224,7 @@ pub fn cleanup(
     show_hook_output: bool,
 ) -> Result<CleanupResult> {
     // Determine if this worktree was created as a session or window
-    let mode = get_worktree_mode(handle);
+    let mode = context.vcs.get_workspace_mode(handle);
     let target_name = if mode == MuxMode::Session {
         git::get_worktree_target_session(handle).unwrap_or_else(|| handle.to_string())
     } else {
@@ -414,14 +411,14 @@ pub fn cleanup(
             }
         }
 
-        // 3. Prune worktrees to clean up git's metadata.
-        // Git will see the original path as missing since we renamed it.
-        git::prune_worktrees_in(&context.git_common_dir).context("Failed to prune worktrees")?;
-        debug!("cleanup:git worktrees pruned");
+        // 3. Prune workspaces to clean up VCS metadata.
+        // VCS will see the original path as missing since we renamed it.
+        context.vcs.prune_workspaces(&context.shared_dir).context("Failed to prune workspaces")?;
+        debug!("cleanup:workspaces pruned");
 
         // 4. Delete the local branch (unless keeping it).
         if !keep_branch {
-            git::delete_branch_in(branch_name, force, &context.git_common_dir)
+            context.vcs.delete_branch(branch_name, force, &context.shared_dir)
                 .context("Failed to delete local branch")?;
             result.local_branch_deleted = true;
             info!(branch = branch_name, "cleanup:local branch deleted");
@@ -549,7 +546,13 @@ pub fn cleanup(
                 handle: handle.to_string(),
                 keep_branch,
                 force,
-                git_common_dir: context.git_common_dir.clone(),
+                vcs_cleanup_commands: context.vcs.build_cleanup_commands(
+                    &context.shared_dir,
+                    branch_name,
+                    handle,
+                    keep_branch,
+                    force,
+                ),
                 worktree_admin_dir,
             });
             debug!(
@@ -635,7 +638,7 @@ pub fn cleanup(
     // Only remove immediately when not deferring -- deferred cleanup includes this
     // in the shell script so metadata survives if the deferred script fails.
     if result.deferred_cleanup.is_none()
-        && let Err(e) = git::remove_worktree_meta(handle)
+        && let Err(e) = context.vcs.remove_workspace_meta(handle)
     {
         warn!(handle = handle, error = %e, "cleanup:failed to remove worktree metadata");
     }
@@ -657,7 +660,6 @@ pub fn cleanup(
 fn build_deferred_cleanup_script(dc: &DeferredCleanup) -> String {
     let wt = shell_quote(&dc.worktree_path.to_string_lossy());
     let trash = shell_quote(&dc.trash_path.to_string_lossy());
-    let git_dir = shell_quote(&dc.git_common_dir.to_string_lossy());
 
     let mut cmds = Vec::new();
     // 1. Rename worktree to trash
@@ -669,23 +671,8 @@ fn build_deferred_cleanup_script(dc: &DeferredCleanup) -> String {
         let locked = shell_quote(&admin_dir.join("locked").to_string_lossy());
         cmds.push(format!("rm -f {} >/dev/null 2>&1", locked));
     }
-    // 3. Prune git worktrees
-    cmds.push(format!("git -C {} worktree prune >/dev/null 2>&1", git_dir));
-    // 4. Delete branch (if not keeping)
-    if !dc.keep_branch {
-        let branch = shell_quote(&dc.branch_name);
-        let force_flag = if dc.force { "-D" } else { "-d" };
-        cmds.push(format!(
-            "git -C {} branch {} {} >/dev/null 2>&1",
-            git_dir, force_flag, branch
-        ));
-    }
-    // 5. Remove worktree metadata from git config
-    let handle = shell_quote(&dc.handle);
-    cmds.push(format!(
-        "git -C {} config --local --remove-section workmux.worktree.{} >/dev/null 2>&1",
-        git_dir, handle
-    ));
+    // 3-5. VCS-specific cleanup (prune, branch delete, config remove)
+    cmds.extend(dc.vcs_cleanup_commands.iter().cloned());
     // 6. Delete trash
     cmds.push(format!("rm -rf {} >/dev/null 2>&1", trash));
 
@@ -924,6 +911,33 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    /// Build VCS cleanup commands matching what GitVcs.build_cleanup_commands() produces.
+    /// This allows tests to verify the deferred cleanup script structure without
+    /// depending on a real VCS instance.
+    fn git_cleanup_commands(
+        git_dir: &str,
+        branch: &str,
+        handle: &str,
+        keep_branch: bool,
+        force: bool,
+    ) -> Vec<String> {
+        use crate::shell::shell_quote;
+        let git_dir_q = shell_quote(git_dir);
+        let mut cmds = Vec::new();
+        cmds.push(format!("git -C {} worktree prune >/dev/null 2>&1", git_dir_q));
+        if !keep_branch {
+            let branch_q = shell_quote(branch);
+            let flag = if force { "-D" } else { "-d" };
+            cmds.push(format!("git -C {} branch {} {} >/dev/null 2>&1", git_dir_q, flag, branch_q));
+        }
+        let handle_q = shell_quote(handle);
+        cmds.push(format!(
+            "git -C {} config --local --remove-section workmux.worktree.{} >/dev/null 2>&1",
+            git_dir_q, handle_q
+        ));
+        cmds
+    }
+
     fn make_deferred_cleanup(
         worktree: &str,
         trash: &str,
@@ -940,7 +954,7 @@ mod tests {
             handle: handle.to_string(),
             keep_branch,
             force,
-            git_common_dir: PathBuf::from(git_dir),
+            vcs_cleanup_commands: git_cleanup_commands(git_dir, branch, handle, keep_branch, force),
             worktree_admin_dir: None,
         }
     }

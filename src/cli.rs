@@ -1,7 +1,7 @@
 use crate::command::args::{MultiArgs, PromptArgs, RescueArgs, SetupFlags};
 use crate::config::{MuxMode, SidebarPosition};
 use crate::workflow::pr::PrReference;
-use crate::{claude, command, config, git, nerdfont};
+use crate::{claude, command, config, nerdfont, vcs};
 use anyhow::{Context, Result};
 use clap::error::{ContextKind, ContextValue, ErrorKind};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
@@ -31,13 +31,6 @@ macro_rules! impl_passthrough_typed_value_parser {
     };
 }
 
-fn try_list_worktrees() -> Option<Vec<(PathBuf, String)>> {
-    if !git::is_git_repo().unwrap_or(false) {
-        return None;
-    }
-    git::list_worktrees().ok()
-}
-
 #[derive(Clone, Debug)]
 struct WorktreeBranchParser;
 
@@ -47,11 +40,19 @@ impl WorktreeBranchParser {
     }
 
     fn get_branches(&self) -> Vec<String> {
-        let Some(worktrees) = try_list_worktrees() else {
-            return Vec::new();
+        // Don't attempt completions if not in a VCS repo.
+        let vcs = match vcs::try_detect_vcs() {
+            Some(v) => v,
+            None => return Vec::new(),
         };
 
-        let main_branch = git::get_default_branch().ok();
+        let worktrees = match vcs.list_workspaces() {
+            Ok(wt) => wt,
+            // Fail silently on completion; don't disrupt the user's shell.
+            Err(_) => return Vec::new(),
+        };
+
+        let main_branch = vcs.get_default_branch().ok();
 
         worktrees
             .into_iter()
@@ -76,11 +77,19 @@ impl WorktreeHandleParser {
     }
 
     fn get_handles() -> Vec<String> {
-        let Some(worktrees) = try_list_worktrees() else {
-            return Vec::new();
+        // Don't attempt completions if not in a VCS repo.
+        let vcs = match vcs::try_detect_vcs() {
+            Some(v) => v,
+            None => return Vec::new(),
         };
 
-        let main_worktree_root = git::get_main_worktree_root().ok();
+        let worktrees = match vcs.list_workspaces() {
+            Ok(wt) => wt,
+            // Fail silently on completion; don't disrupt the user's shell.
+            Err(_) => return Vec::new(),
+        };
+
+        let main_worktree_root = vcs.get_main_workspace_root().ok();
 
         worktrees
             .into_iter()
@@ -169,13 +178,14 @@ impl GitBranchParser {
     }
 
     fn get_branches() -> Vec<String> {
-        // Don't attempt completions if not in a git repo.
-        if !git::is_git_repo().unwrap_or(false) {
-            return Vec::new();
-        }
+        // Don't attempt completions if not in a VCS repo.
+        let vcs = match vcs::try_detect_vcs() {
+            Some(v) => v,
+            None => return Vec::new(),
+        };
 
         // Fail silently on completion; don't disrupt the user's shell.
-        git::list_checkout_branches().unwrap_or_default()
+        vcs.list_checkout_branches().unwrap_or_default()
     }
 }
 

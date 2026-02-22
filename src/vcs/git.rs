@@ -167,8 +167,8 @@ impl Vcs for GitVcs {
 
     // ── Status ───────────────────────────────────────────────────────
 
-    fn get_status(&self, worktree: &Path) -> VcsStatus {
-        git::get_git_status(worktree)
+    fn get_status(&self, worktree: &Path, main_branch: Option<&str>) -> VcsStatus {
+        git::get_git_status(worktree, main_branch)
     }
 
     fn has_uncommitted_changes(&self, worktree: &Path) -> Result<bool> {

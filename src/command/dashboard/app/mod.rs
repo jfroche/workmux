@@ -19,8 +19,8 @@ use std::sync::{Arc, mpsc};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::config::Config;
-use crate::git::{self, GitStatus};
 use crate::github::PrSummary;
+use crate::vcs::{self, VcsStatus};
 use crate::multiplexer::{AgentPane, Multiplexer};
 use crate::state::StateStore;
 use crate::workflow::types::WorktreeInfo;
@@ -66,7 +66,7 @@ pub struct App {
     /// Height of the preview area (updated during rendering)
     pub preview_height: u16,
     /// Git status for each worktree path
-    pub git_statuses: HashMap<PathBuf, GitStatus>,
+    pub git_statuses: HashMap<PathBuf, VcsStatus>,
     /// Last time git status was fetched (to throttle background fetches)
     last_git_fetch: std::time::Instant,
     /// Flag to track if a git fetch is in progress (prevents thread pile-up)
@@ -196,7 +196,9 @@ impl App {
             ScopeMode::load()
         };
         let launch_session = mux.current_session();
-        let git_statuses = git::load_status_cache();
+        let git_statuses = vcs::try_detect_vcs()
+            .map(|v| v.load_status_cache())
+            .unwrap_or_default();
         let pr_statuses = crate::github::load_pr_cache();
         let hide_stale = load_hide_stale();
         let last_pane_id = load_last_pane_id();
@@ -324,7 +326,8 @@ impl App {
                 .into_iter()
                 .map(|path| {
                     std::thread::spawn(move || {
-                        let root = git::get_repo_root_for(&path).ok();
+                        let root =
+                            vcs::try_detect_vcs().and_then(|v| v.get_repo_root_for(&path).ok());
                         (path, root)
                     })
                 })

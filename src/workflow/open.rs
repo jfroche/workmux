@@ -46,7 +46,7 @@ pub fn open(
 
     // This command requires the worktree to already exist
     // Smart resolution: try handle first, then branch name
-    let (worktree_path, branch_name) = git::find_worktree_in(name, Some(&context.execution_dir))
+    let (worktree_path, branch_name) = context.vcs.find_workspace(name)
         .map_err(|_| {
             anyhow!(
                 "Worktree '{}' not found. Use 'workmux list' to see available worktrees.",
@@ -219,34 +219,26 @@ pub fn open(
             } else {
                 "window"
             };
-            let _ = git::set_worktree_meta_in(
-                &base_handle,
-                "mode",
-                mode_str,
-                Some(&context.execution_dir),
-            );
+            let _ = context.vcs.set_workspace_meta(&base_handle, "mode", mode_str);
             if let Some(target_window_name) = &options.target_window_name {
-                let _ = git::set_worktree_meta_in(
+                let _ = context.vcs.set_workspace_meta(
                     &base_handle,
                     "target-window",
                     target_window_name,
-                    Some(&context.execution_dir),
                 );
             }
             if let Some(target_session_name) = &options.target_session_name {
-                let _ = git::set_worktree_meta_in(
+                let _ = context.vcs.set_workspace_meta(
                     &base_handle,
                     "target-session",
                     target_session_name,
-                    Some(&context.execution_dir),
                 );
             }
             if let Some(window_session_name) = &options.window_session_name {
-                let _ = git::set_worktree_meta_in(
+                let _ = context.vcs.set_workspace_meta(
                     &base_handle,
                     "window-session",
                     window_session_name,
-                    Some(&context.execution_dir),
                 );
             }
         }
@@ -292,7 +284,7 @@ pub fn open(
         } else {
             "window"
         };
-        git::set_worktree_meta_in(&base_handle, "mode", mode_str, Some(&context.execution_dir))
+        context.vcs.set_workspace_meta(&base_handle, "mode", mode_str)
             .context("Failed to persist worktree mode")?;
         info!(
             handle = base_handle,

@@ -1,6 +1,6 @@
 use crate::multiplexer::handle::mode_label;
 use crate::multiplexer::{MuxHandle, WindowTarget, create_backend, detect_backend};
-use crate::{config, git, sandbox};
+use crate::{config, sandbox, vcs};
 use anyhow::{Context, Result, anyhow};
 
 pub fn run(name: Option<&str>) -> Result<()> {
@@ -13,12 +13,14 @@ pub fn run(name: Option<&str>) -> Result<()> {
     let mux = create_backend(detect_backend());
     let prefix = config.window_prefix();
 
+    let vcs = vcs::detect_vcs()?;
+
     // Resolve the handle first. When the user passes a branch name that differs
-    // from the worktree directory name, find_worktree resolves through both handle
+    // from the worktree directory name, find_workspace resolves through both handle
     // and branch lookups, then we extract the true handle from the path basename.
     let resolved_handle = match name {
         Some(n) => {
-            let (path, _branch) = git::find_worktree(n).map_err(|_| {
+            let (path, _branch) = vcs.find_workspace(n).map_err(|_| {
                 anyhow!(
                     "Worktree '{}' not found. Use 'workmux list' to see available worktrees.",
                     n
@@ -33,7 +35,7 @@ pub fn run(name: Option<&str>) -> Result<()> {
     };
 
     // Determine if this worktree was created as a session or window
-    let mode = git::get_worktree_mode(&resolved_handle);
+    let mode = vcs.get_workspace_mode(&resolved_handle);
     let target_name = if mode == crate::config::MuxMode::Session {
         git::get_worktree_target_session(&resolved_handle)
             .unwrap_or_else(|| resolved_handle.clone())

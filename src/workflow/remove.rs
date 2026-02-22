@@ -1,11 +1,10 @@
 use anyhow::{Result, anyhow};
 use std::path::PathBuf;
 
-use crate::git;
 use crate::sandbox;
 use tracing::{debug, info};
 
-use super::cleanup::{self, get_worktree_mode};
+use super::cleanup;
 use super::context::WorkflowContext;
 use super::types::RemoveResult;
 
@@ -64,7 +63,7 @@ fn remove_with_hook_output(
 
     // Get worktree path and branch - this also validates that the worktree exists
     // Smart resolution: try handle first, then branch name
-    let (worktree_path, branch_name) = match git::find_worktree(handle) {
+    let (worktree_path, branch_name) = match context.vcs.find_workspace(handle) {
         Ok(worktree) => worktree,
         Err(e) => {
             if let Some(path) = fallback_worktree_path(handle, context)? {
@@ -94,7 +93,7 @@ fn remove_with_hook_output(
     debug!(handle = actual_handle, branch = branch_name, path = %worktree_path.display(), "remove:worktree resolved");
 
     // Capture mode BEFORE cleanup (cleanup removes the metadata)
-    let mode = get_worktree_mode(actual_handle);
+    let mode = context.vcs.get_workspace_mode(actual_handle);
 
     // Safety Check: Prevent deleting the main worktree itself, regardless of branch.
     let is_main_worktree = match (
@@ -141,7 +140,7 @@ fn remove_with_hook_output(
 
     if worktree_path.exists()
         && !git::has_missing_admin_dir(&worktree_path)
-        && git::has_uncommitted_changes(&worktree_path)?
+        && context.vcs.has_uncommitted_changes(&worktree_path)?
         && !force
     {
         return Err(anyhow!(

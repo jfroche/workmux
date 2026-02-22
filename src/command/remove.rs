@@ -1,6 +1,6 @@
 use crate::multiplexer::{create_backend, detect_backend};
 use crate::workflow::WorkflowContext;
-use crate::{config, git, spinner, workflow};
+use crate::{config, git, spinner, vcs, workflow};
 use anyhow::{Context, Result, anyhow};
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -38,11 +38,12 @@ fn run_specified(names: Vec<String>, force: bool, keep_branch: bool) -> Result<(
     let config = config::Config::load(None)?;
     let mux = create_backend(detect_backend());
     let context = WorkflowContext::new(config, mux, None)?;
+    let vcs = context.vcs.clone();
 
     // 2. Resolve all targets and validate they exist
     let mut candidates: Vec<(String, PathBuf, String)> = Vec::new();
     for name in resolved_names {
-        let (worktree_path, branch_name) = match git::find_worktree(&name) {
+        let (worktree_path, branch_name) = match vcs.find_workspace(&name) {
             Ok(worktree) => worktree,
             Err(e) => {
                 if let Some(path) = workflow::fallback_worktree_path(&name, &context)? {
@@ -101,7 +102,7 @@ fn run_specified(names: Vec<String>, force: bool, keep_branch: bool) -> Result<(
         // Check uncommitted (blocking)
         if path.exists()
             && !git::has_missing_admin_dir(&path)
-            && git::has_uncommitted_changes(&path).unwrap_or(false)
+            && vcs.has_uncommitted_changes(&path).unwrap_or(false)
         {
             uncommitted.push(handle);
             continue;
@@ -116,7 +117,7 @@ fn run_specified(names: Vec<String>, force: bool, keep_branch: bool) -> Result<(
         }
 
         // Check unmerged (promptable), only if we're deleting the branch
-        if !keep_branch && let Some(base) = is_unmerged(&branch)? {
+        if !keep_branch && let Some(base) = is_unmerged(vcs.as_ref(), &branch)? {
             unmerged.push((handle, branch, base));
             continue;
         }
@@ -171,25 +172,25 @@ fn run_specified(names: Vec<String>, force: bool, keep_branch: bool) -> Result<(
 }
 
 /// Check if a branch has unmerged commits. Returns Some(base) if unmerged, None otherwise.
-fn is_unmerged(branch: &str) -> Result<Option<String>> {
-    let main_branch = git::get_default_branch().unwrap_or_else(|_| "main".to_string());
+fn is_unmerged(vcs: &dyn vcs::Vcs, branch: &str) -> Result<Option<String>> {
+    let main_branch = vcs.get_default_branch().unwrap_or_else(|_| "main".to_string());
 
-    let base = git::get_branch_base(branch)
+    let base = vcs.get_branch_base(branch)
         .ok()
         .unwrap_or_else(|| main_branch.clone());
 
-    let base_commit = match git::get_merge_base(&base) {
+    let base_commit = match vcs.get_merge_base(&base) {
         Ok(b) => b,
         Err(_) => {
             // If we can't determine base, try falling back to main
-            match git::get_merge_base(&main_branch) {
+            match vcs.get_merge_base(&main_branch) {
                 Ok(b) => b,
                 Err(_) => return Ok(None), // Can't determine, assume safe
             }
         }
     };
 
-    let unmerged_branches = git::get_unmerged_branches(&base_commit)?;
+    let unmerged_branches = vcs.get_unmerged_branches(&base_commit)?;
     if unmerged_branches.contains(branch) {
         Ok(Some(base))
     } else {
@@ -341,13 +342,14 @@ impl BulkRemovalMode {
 }
 
 fn collect_bulk_removal_plan(
+    vcs: &dyn vcs::Vcs,
     mode: &BulkRemovalMode,
     force: bool,
     keep_branch: bool,
 ) -> Result<BulkRemovalPlan> {
-    let worktrees = git::list_worktrees()?;
-    let main_branch = git::get_default_branch()?;
-    let main_worktree_root = git::get_main_worktree_root()?;
+    let worktrees = vcs.list_workspaces()?;
+    let main_branch = vcs.get_default_branch()?;
+    let main_worktree_root = vcs.get_main_workspace_root()?;
 
     let mut plan = BulkRemovalPlan {
         to_remove: Vec::new(),
@@ -367,7 +369,7 @@ fn collect_bulk_removal_plan(
             continue;
         }
 
-        if !force && path.exists() && git::has_uncommitted_changes(&path).unwrap_or(false) {
+        if !force && path.exists() && vcs.has_uncommitted_changes(&path).unwrap_or(false) {
             plan.skipped.push(BulkSkippedWorktree {
                 branch,
                 reason: BulkSkipReason::Uncommitted,
@@ -376,11 +378,11 @@ fn collect_bulk_removal_plan(
         }
 
         if mode.allow_unmerged_skip() && !force && !keep_branch {
-            let base = git::get_branch_base(&branch)
+            let base = vcs.get_branch_base(&branch)
                 .ok()
                 .unwrap_or_else(|| main_branch.clone());
-            if let Ok(merge_base) = git::get_merge_base(&base)
-                && let Ok(unmerged_branches) = git::get_unmerged_branches(&merge_base)
+            if let Ok(merge_base) = vcs.get_merge_base(&base)
+                && let Ok(unmerged_branches) = vcs.get_unmerged_branches(&merge_base)
                 && unmerged_branches.contains(&branch)
             {
                 plan.skipped.push(BulkSkippedWorktree {
@@ -429,8 +431,8 @@ fn execute_bulk_removals(
     (success_count, failed)
 }
 
-fn run_bulk_removal(mode: BulkRemovalMode, force: bool, keep_branch: bool) -> Result<()> {
-    let plan = collect_bulk_removal_plan(&mode, force, keep_branch)?;
+fn run_bulk_removal(vcs: &dyn vcs::Vcs, mode: BulkRemovalMode, force: bool, keep_branch: bool) -> Result<()> {
+    let plan = collect_bulk_removal_plan(vcs, &mode, force, keep_branch)?;
 
     let skipped_uncommitted = split_skipped_worktrees(&plan.skipped, BulkSkipReason::Uncommitted);
     let skipped_unmerged = split_skipped_worktrees(&plan.skipped, BulkSkipReason::Unmerged);
@@ -465,15 +467,18 @@ fn run_bulk_removal(mode: BulkRemovalMode, force: bool, keep_branch: bool) -> Re
 
 /// Remove all managed worktrees (except main)
 fn run_all(force: bool, keep_branch: bool) -> Result<()> {
-    run_bulk_removal(BulkRemovalMode::All, force, keep_branch)
+    let vcs = vcs::detect_vcs()?;
+    run_bulk_removal(vcs.as_ref(), BulkRemovalMode::All, force, keep_branch)
 }
 
 /// Remove worktrees whose upstream remote branch has been deleted
 fn run_gone(force: bool, keep_branch: bool) -> Result<()> {
+    let vcs = vcs::detect_vcs()?;
     // Fetch with prune to update remote-tracking refs
-    spinner::with_spinner("Fetching from remote", git::fetch_prune)?;
-    let gone_branches = git::get_gone_branches().unwrap_or_default();
-    run_bulk_removal(BulkRemovalMode::Gone(gone_branches), force, keep_branch)
+    let vcs_clone = vcs.clone();
+    spinner::with_spinner("Fetching from remote", move || vcs_clone.fetch_prune())?;
+    let gone_branches = vcs.get_gone_branches().unwrap_or_default();
+    run_bulk_removal(vcs.as_ref(), BulkRemovalMode::Gone(gone_branches), force, keep_branch)
 }
 
 /// Execute the actual worktree removal
