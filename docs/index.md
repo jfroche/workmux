@@ -1,7 +1,7 @@
 ---
 layout: home
 title: workmux - parallel AI agents in your terminal
-description: Terminal-first workflow for parallel AI agents using git worktrees
+description: Terminal-first workflow for parallel AI agents using git worktrees or jj workspaces
 ---
 
 <div class="mono-editorial">
@@ -79,7 +79,7 @@ description: Terminal-first workflow for parallel AI agents using git worktrees
   <div class="ed-container">
     <div class="ed-accent-rule"></div>
     <span class="ed-section-label">Worktree pain points, solved</span>
-    <p class="ed-section-desc">Git worktrees are powerful, but managing them manually is painful. workmux automates the rough edges.</p>
+    <p class="ed-section-desc">Git worktrees (and jj workspaces) are powerful, but managing them manually is painful. workmux automates the rough edges.</p>
     <div class="ed-pain-points-list">
       <div class="ed-pain-point">
         <h3>"You need to reinstall everything"</h3>

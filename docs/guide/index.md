@@ -13,7 +13,7 @@ isolated development environments. Also supports [kitty](/guide/kitty),
 for running multiple AI agents in parallel without conflict.
 
 **Philosophy**: Build on tools you already use. tmux/zellij/kitty/etc. for
-windowing, git for worktrees, your agent for coding — workmux orchestrates the
+windowing, git worktrees (or [jj workspaces](https://jj-vcs.github.io/jj/latest/working-copy/#workspaces)) for isolation, your agent for coding — workmux orchestrates the
 rest.
 
 <!-- prettier-ignore -->
@@ -141,7 +141,7 @@ supports [Kitty](/guide/kitty), [WezTerm](/guide/wezterm), and
 
 ## Features
 
-- Create git worktrees with matching tmux windows (or kitty/WezTerm/Zellij tabs)
+- Create worktrees (git) or workspaces (jj) with matching tmux windows (or kitty/WezTerm/Zellij tabs)
   in a single command (`add`)
 - Merge branches and clean up everything (worktree, tmux window, branches) in
   one command (`merge`)
@@ -226,9 +226,11 @@ clean working tree. Worktrees remove this friction. `workmux` automates the
 entire process and pairs each worktree with a dedicated tmux window, creating
 fully isolated development environments.
 
+**Using jj?** workmux also supports [jj (Jujutsu)](https://jj-vcs.github.io/jj/) natively. jj workspaces provide the same parallel development benefits. workmux auto-detects your VCS backend.
+
 ## Requirements
 
-- Git 2.5+ (for worktree support)
+- Git 2.5+ (for worktree support) or [jj](https://jj-vcs.github.io/jj/) (Jujutsu)
 - tmux (or [WezTerm](/guide/wezterm), [kitty](/guide/kitty), or
   [Zellij](/guide/zellij))
 

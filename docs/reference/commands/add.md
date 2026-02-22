@@ -1,10 +1,10 @@
 ---
-description: Create git worktrees and tmux windows, with support for AI prompts and parallel generation
+description: Create worktrees and tmux windows, with support for AI prompts and parallel generation
 ---
 
 # add
 
-Creates a new git worktree with a matching tmux window and switches you to it immediately. If the branch doesn't exist, it will be created automatically.
+Creates a new worktree with a matching tmux window and switches you to it immediately. If the branch doesn't exist, it will be created automatically.
 
 ```bash
 workmux add <branch-name> [flags]
@@ -55,7 +55,7 @@ These options allow you to skip expensive setup steps when they're not needed (e
 ## What happens
 
 1. Determines the **handle** for the worktree by slugifying the branch name (e.g., `feature/auth` becomes `feature-auth`). This can be overridden with the `--name` flag.
-2. Creates a git worktree at `<worktree_dir>/<handle>` (the `worktree_dir` is configurable and defaults to a sibling directory of your project; supports `~` and a `{project}` placeholder, e.g. `~/.workmux/{project}`)
+2. Creates a worktree (via `git worktree add` or `jj workspace add`) at `<worktree_dir>/<handle>` (the `worktree_dir` is configurable and defaults to a sibling directory of your project; supports `~` and a `{project}` placeholder, e.g. `~/.workmux/{project}`)
 3. Runs any configured file operations (copy/symlink)
 4. Executes `post_create` commands if defined (runs before the tmux window/session opens, so keep them fast)
 5. Creates a new tmux window named `<window_prefix><handle>` (e.g., `wm-feature-auth` with `window_prefix: wm-`). In window mode, `window_placement` controls whether the window is created after the calling window or at the right edge. With `--target-name`, the managed tmux target uses that name instead of `<handle>`. With `--parent-session`, a window-mode target is created inside that tmux session. With `--mode session` or `--session`, the worktree is created in its own dedicated tmux session.
