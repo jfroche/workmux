@@ -7,7 +7,8 @@ use crate::multiplexer::{
     CreateSessionParams, CreateWindowInSessionParams, CreateWindowParams, Multiplexer,
     PaneSetupOptions,
 };
-use crate::{cmd, config, git, prompt::Prompt};
+use crate::vcs::Vcs;
+use crate::{cmd, config, prompt::Prompt};
 use tracing::{debug, info};
 
 use fs_extra::dir as fs_dir;
@@ -37,6 +38,7 @@ pub fn setup_environment(
     options: &super::types::SetupOptions,
     agent: Option<&str>,
     after_window: Option<String>,
+    vcs: &dyn Vcs,
 ) -> Result<CreateResult> {
     debug!(
         branch = branch_name,
@@ -48,7 +50,7 @@ pub fn setup_environment(
     );
     let prefix = config.window_prefix();
     // Use main worktree root for file operations since source files live there
-    let repo_root = git::get_main_worktree_root()?;
+    let repo_root = vcs.get_main_workspace_root()?;
 
     // Determine effective working directory (config-relative or worktree root)
     let effective_working_dir = options.working_dir.as_deref().unwrap_or(worktree_path);
@@ -68,7 +70,7 @@ pub fn setup_environment(
 
     // Auto-symlink CLAUDE.local.md from main worktree if it exists and is gitignored
     if options.run_file_ops {
-        symlink_claude_local_md(&repo_root, effective_working_dir)
+        symlink_claude_local_md(&repo_root, effective_working_dir, vcs)
             .context("Failed to auto-symlink CLAUDE.local.md")?;
     }
 
@@ -1027,13 +1029,13 @@ mod tests {
 }
 
 /// Symlink CLAUDE.local.md from main worktree if it exists and is gitignored.
-fn symlink_claude_local_md(repo_root: &Path, worktree_path: &Path) -> Result<()> {
+fn symlink_claude_local_md(repo_root: &Path, worktree_path: &Path, vcs: &dyn Vcs) -> Result<()> {
     let source = repo_root.join("CLAUDE.local.md");
     if !source.exists() {
         return Ok(());
     }
 
-    if !git::is_path_ignored(repo_root, "CLAUDE.local.md") {
+    if !vcs.is_path_ignored(repo_root, "CLAUDE.local.md") {
         return Ok(());
     }
 
