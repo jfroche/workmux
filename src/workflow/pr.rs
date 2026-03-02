@@ -4,7 +4,9 @@
 //! from the command layer, making it reusable and testable.
 
 use crate::{git, github, spinner};
+use crate::vcs::Vcs;
 use anyhow::{Context, Result, anyhow};
+use std::sync::Arc;
 
 /// Abstraction for git operations used in remote detection
 trait RemoteDetectionContext {
@@ -14,24 +16,26 @@ trait RemoteDetectionContext {
     fn fetch_remote(&self, remote: &str) -> Result<()>;
 }
 
-/// Real implementation using the git module
-struct RealRemoteDetectionContext;
+/// Real implementation delegating through the Vcs trait
+struct RealRemoteDetectionContext {
+    vcs: Arc<dyn Vcs>,
+}
 
 impl RemoteDetectionContext for RealRemoteDetectionContext {
     fn list_remotes(&self) -> Result<Vec<String>> {
-        git::list_remotes()
+        self.vcs.list_remotes()
     }
 
     fn branch_exists(&self, ref_name: &str) -> Result<bool> {
-        git::branch_exists(ref_name)
+        self.vcs.branch_exists(ref_name)
     }
 
     fn resolve_fork(&self, spec: &git::ForkBranchSpec) -> Result<ForkBranchResult> {
-        resolve_fork_branch(spec)
+        resolve_fork_branch(spec, self.vcs.as_ref())
     }
 
     fn fetch_remote(&self, remote: &str) -> Result<()> {
-        git::fetch_remote(remote)
+        self.vcs.fetch_remote(remote)
     }
 }
 
@@ -48,6 +52,7 @@ pub struct PrCheckoutResult {
 pub fn resolve_pr_ref(
     pr_number: u32,
     custom_branch_name: Option<&str>,
+    vcs: &dyn Vcs,
 ) -> Result<PrCheckoutResult> {
     let pr_details = spinner::with_spinner(&format!("Fetching PR #{}", pr_number), || {
         github::get_pr_details(pr_number)
@@ -77,11 +82,11 @@ pub fn resolve_pr_ref(
 
     // Determine if this is a fork PR and ensure remote exists
     let current_repo_owner =
-        git::get_repo_owner().context("Failed to determine repository owner from origin remote")?;
+        vcs.get_repo_owner().context("Failed to determine repository owner from origin remote")?;
 
     let remote_name = if pr_details.is_fork(&current_repo_owner) {
         let fork_owner = &pr_details.head_repository_owner.login;
-        git::ensure_fork_remote(fork_owner)?
+        vcs.ensure_fork_remote(fork_owner)?
     } else {
         "origin".to_string()
     };
@@ -105,7 +110,7 @@ pub struct ForkBranchResult {
 /// Resolve a fork branch specified as "owner:branch".
 ///
 /// Sets up the fork remote and optionally displays associated PR info.
-pub fn resolve_fork_branch(fork_spec: &git::ForkBranchSpec) -> Result<ForkBranchResult> {
+pub fn resolve_fork_branch(fork_spec: &git::ForkBranchSpec, vcs: &dyn Vcs) -> Result<ForkBranchResult> {
     // Try to find an associated PR and display info (optional, non-blocking)
     if let Ok(Some(pr)) = github::find_pr_by_head_ref(&fork_spec.owner, &fork_spec.branch) {
         let state_suffix = match pr.state.as_str() {
@@ -119,7 +124,7 @@ pub fn resolve_fork_branch(fork_spec: &git::ForkBranchSpec) -> Result<ForkBranch
     }
 
     // Ensure the fork remote exists
-    let remote_name = git::ensure_fork_remote(&fork_spec.owner)?;
+    let remote_name = vcs.ensure_fork_remote(&fork_spec.owner)?;
 
     // Note: We do not fetch or verify the branch exists here.
     // The `create` workflow will perform the fetch and fail if the branch is missing.
@@ -138,8 +143,9 @@ pub fn resolve_fork_branch(fork_spec: &git::ForkBranchSpec) -> Result<ForkBranch
 pub fn detect_remote_branch(
     branch_name: &str,
     base: Option<&str>,
+    vcs: Arc<dyn Vcs>,
 ) -> Result<(Option<String>, String)> {
-    detect_remote_branch_internal(branch_name, base, &RealRemoteDetectionContext)
+    detect_remote_branch_internal(branch_name, base, &RealRemoteDetectionContext { vcs })
 }
 
 /// Internal logic using the context trait for testability.
