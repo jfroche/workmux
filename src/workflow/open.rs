@@ -144,6 +144,7 @@ pub fn open(
         &options_with_workdir,
         None,
         after_window,
+        context.vcs.as_ref(),
     )?;
     info!(
         handle = handle,
