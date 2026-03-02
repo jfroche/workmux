@@ -137,6 +137,9 @@ pub fn run(
     // Ensure preconditions are met (git repo and multiplexer session)
     check_preconditions()?;
 
+    // Detect VCS backend once for use in PR and remote branch resolution
+    let detected_vcs = vcs::detect_vcs()?;
+
     // Extract sandbox override before consuming setup flags
     let sandbox_override = setup.sandbox;
 
@@ -214,7 +217,7 @@ pub fn run(
             }
         } else if let Some(pr_number) = pr {
             // Handle PR checkout if --pr flag is provided
-            let result = workflow::pr::resolve_pr_ref(pr_number, branch_name)?;
+            let result = workflow::pr::resolve_pr_ref(pr_number, branch_name, detected_vcs.as_ref())?;
             (result.local_branch, None, Some(result.remote_branch), false)
         } else {
             // Normal flow: use provided branch name
@@ -334,7 +337,7 @@ pub fn run(
     let (remote_branch, template_base_name) = if let Some(ref pr_remote) = remote_branch_for_pr {
         (Some(pr_remote.clone()), branch_name.to_string())
     } else {
-        detect_remote_branch(branch_name, base)?
+        detect_remote_branch(branch_name, base, detected_vcs.clone())?
     };
     let resolved_base = if remote_branch.is_some() { None } else { base };
 
