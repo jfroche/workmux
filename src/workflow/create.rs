@@ -531,6 +531,7 @@ pub fn create(context: &WorkflowContext, args: CreateArgs) -> Result<CreateResul
         &options_with_prompt,
         agent,
         None,
+        context.vcs.as_ref(),
     )?;
     result.base_branch = base_branch_for_creation.clone();
     info!(
