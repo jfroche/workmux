@@ -39,6 +39,13 @@
               git
             ];
 
+            # These tests rely on CWD being inside a git repo, which
+            # doesn't hold in the Nix sandbox (source is copied, not cloned).
+            checkFlags = [
+              "--skip=config::tests::find_project_config_from_subdir"
+              "--skip=config::tests::find_project_config_nearest_wins"
+            ];
+
             postInstall = ''
               # Set HOME to avoid log directory creation errors during completion generation
               export HOME=$TMPDIR
