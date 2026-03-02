@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use crate::{config, git};
+use crate::{config, git, vcs::Vcs};
 use tracing::info;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,13 +189,13 @@ pub fn handle_file_operations(
 }
 
 /// Symlink CLAUDE.local.md from main worktree if it exists and is gitignored.
-pub fn symlink_claude_local_md(repo_root: &Path, worktree_path: &Path) -> Result<()> {
+pub fn symlink_claude_local_md(repo_root: &Path, worktree_path: &Path, vcs: &dyn Vcs) -> Result<()> {
     let source = repo_root.join("CLAUDE.local.md");
     if !source.exists() {
         return Ok(());
     }
 
-    if !git::is_path_ignored(repo_root, "CLAUDE.local.md") {
+    if !vcs.is_path_ignored(repo_root, "CLAUDE.local.md") {
         return Ok(());
     }
 

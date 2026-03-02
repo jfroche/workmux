@@ -7,7 +7,8 @@ use crate::multiplexer::{
     CreateSessionParams, CreateWindowInSessionParams, CreateWindowParams, Multiplexer,
     PaneSetupOptions,
 };
-use crate::{cmd, config, git, prompt::Prompt};
+use crate::vcs::Vcs;
+use crate::{cmd, config, prompt::Prompt};
 use tracing::{debug, info};
 
 use super::file_ops::{handle_file_operations, symlink_claude_local_md};
@@ -35,6 +36,7 @@ pub fn setup_environment(
     options: &super::types::SetupOptions,
     agent: Option<&str>,
     after_window: Option<String>,
+    vcs: &dyn Vcs,
 ) -> Result<CreateResult> {
     debug!(
         branch = branch_name,
@@ -47,7 +49,7 @@ pub fn setup_environment(
     let prefix = config.window_prefix();
     let repo_root = match &options.config_root {
         Some(path) => path.clone(),
-        None => git::get_main_worktree_root()?,
+        None => vcs.get_main_workspace_root()?,
     };
 
     // Determine effective working directory (config-relative or worktree root)
@@ -68,7 +70,7 @@ pub fn setup_environment(
 
     // Auto-symlink CLAUDE.local.md from main worktree if it exists and is gitignored
     if options.run_file_ops {
-        symlink_claude_local_md(&repo_root, effective_working_dir)
+        symlink_claude_local_md(&repo_root, effective_working_dir, vcs)
             .context("Failed to auto-symlink CLAUDE.local.md")?;
     }
 
