@@ -241,6 +241,9 @@ pub fn run(
         check_preconditions()?;
     }
 
+    // Detect VCS backend once for use in PR and remote branch resolution
+    let detected_vcs = vcs::detect_vcs()?;
+
     // Extract sandbox override before consuming setup flags
     let sandbox_override = setup.sandbox;
 
@@ -372,7 +375,7 @@ pub fn run(
             let result = if dry_run {
                 workflow::pr::resolve_pr_ref_dry_run(pr_number, branch_name)?
             } else {
-                workflow::pr::resolve_pr_ref(pr_number, branch_name)?
+                workflow::pr::resolve_pr_ref(pr_number, branch_name, detected_vcs.as_ref())?
             };
             (result.local_branch, None, Some(result.remote_branch), false)
         } else {
@@ -526,7 +529,7 @@ pub fn run(
     } else if dry_run {
         detect_remote_branch_dry_run(branch_name, cli_base)?
     } else {
-        detect_remote_branch(branch_name, cli_base)?
+        detect_remote_branch(branch_name, cli_base, detected_vcs.clone())?
     };
     let resolved_base = if remote_branch.is_some() {
         None
