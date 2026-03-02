@@ -370,6 +370,7 @@ pub fn open(
         &options_with_workdir,
         agent,
         None,
+        context.vcs.as_ref(),
     )?;
     info!(
         handle = handle,
