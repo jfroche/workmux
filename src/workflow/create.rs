@@ -290,19 +290,20 @@ pub fn create(context: &WorkflowContext, args: CreateArgs) -> Result<CreateResul
             // Use the explicitly provided base branch/commit/tag
             Some(base.to_string())
         } else {
-            // Default to the current branch when no explicit base was provided
-            let current_branch = context.vcs.get_current_branch()
-                .context("Failed to determine the current branch to use as the base")?;
-            let current_branch = current_branch.trim().to_string();
-
-            if current_branch.is_empty() {
-                return Err(anyhow!(
-                    "Cannot determine current branch (detached HEAD). \
-                     Use --base to explicitly specify the starting point."
-                ));
+            // Default to the current branch when no explicit base was provided.
+            // Fall back to None when no branch/bookmark is available (e.g. jj
+            // with no bookmark on @), letting VCS backends use their own default.
+            match context.vcs.get_current_branch() {
+                Ok(branch) => {
+                    let branch = branch.trim().to_string();
+                    if branch.is_empty() {
+                        None
+                    } else {
+                        Some(branch)
+                    }
+                }
+                Err(_) => None,
             }
-
-            Some(current_branch)
         }
     } else {
         None
