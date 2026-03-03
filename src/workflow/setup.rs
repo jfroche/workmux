@@ -520,8 +520,12 @@ pub fn handle_file_operations(
                     )
                 })?;
 
-                let relative_source = pathdiff::diff_paths(&source_path, dest_parent)
-                    .ok_or_else(|| anyhow!("Could not create relative path for symlink"))?;
+                let source_canonical = crate::util::canon_or_self(&source_path);
+                let dest_parent_canonical = crate::util::canon_or_self(dest_parent);
+
+                let relative_source =
+                    pathdiff::diff_paths(&source_canonical, &dest_parent_canonical)
+                        .ok_or_else(|| anyhow!("Could not create relative path for symlink"))?;
 
                 // Remove existing file/symlink at destination to avoid errors
                 // IMPORTANT: Use symlink_metadata to avoid following symlinks
@@ -1045,7 +1049,12 @@ fn symlink_claude_local_md(repo_root: &Path, worktree_path: &Path, vcs: &dyn Vcs
         return Ok(());
     }
 
-    let relative_source = pathdiff::diff_paths(&source, worktree_path)
+    // Canonicalize paths to resolve symlinks and ".." components
+    // that would cause pathdiff::diff_paths to return None
+    let source_canonical = crate::util::canon_or_self(&source);
+    let worktree_canonical = crate::util::canon_or_self(worktree_path);
+
+    let relative_source = pathdiff::diff_paths(&source_canonical, &worktree_canonical)
         .ok_or_else(|| anyhow!("Could not create relative path for CLAUDE.local.md symlink"))?;
 
     #[cfg(unix)]
