@@ -686,7 +686,7 @@ impl Vcs for JjVcs {
 
     fn set_branch_base(&self, branch: &str, base: &str) -> Result<()> {
         let root = find_jj_root()?;
-        let config_key = format!("workmux.base.{}", branch);
+        let config_key = format!("workmux.base.\"{}\"", branch);
         jj_cmd(Some(&root))
             .args(&["config", "set", "--repo", &config_key, base])
             .run()
@@ -704,7 +704,7 @@ impl Vcs for JjVcs {
             None => find_jj_root()?,
         };
 
-        let config_key = format!("workmux.base.{}", branch);
+        let config_key = format!("workmux.base.\"{}\"", branch);
         let output = jj_cmd(Some(&root))
             .args(&["config", "get", &config_key])
             .run_and_capture_stdout()
