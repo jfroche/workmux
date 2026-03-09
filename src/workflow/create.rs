@@ -138,8 +138,10 @@ pub fn create(context: &WorkflowContext, args: CreateArgs) -> Result<CreateResul
         ));
     }
 
-    // Auto-detect: create branch if it doesn't exist
-    let branch_exists = context.vcs.branch_exists(branch_name)?;
+    // Auto-detect: create branch if it doesn't exist.
+    // Check refs/heads/ explicitly to avoid matching remote-tracking refs
+    // (e.g. fork-owner/feat/branch resolving via git rev-parse shorthand).
+    let branch_exists = context.vcs.branch_exists(&format!("refs/heads/{}", branch_name))?;
     if branch_exists && remote_branch.is_some() {
         return Err(anyhow!(
             "Branch '{}' already exists. Remove '--remote' or pick a different branch name.",
