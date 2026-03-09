@@ -42,7 +42,12 @@ impl RemoteDetectionContext for RealRemoteDetectionContext {
 /// Result of resolving a PR checkout.
 pub struct PrCheckoutResult {
     pub local_branch: String,
-    pub remote_branch: String,
+    /// Remote branch spec (e.g. "fork-owner/branch") for create()'s remote_branch path.
+    /// Set when the fork branch is available for fetch+track.
+    pub remote_branch: Option<String>,
+    /// Direct ref to use as base_branch when remote_branch is unavailable
+    /// (e.g. PR ref fallback stored at refs/workmux/pr-NNN).
+    pub base_ref: Option<String>,
 }
 
 /// Resolve a PR reference and prepare for checkout.
@@ -84,21 +89,81 @@ pub fn resolve_pr_ref(
     let current_repo_owner =
         vcs.get_repo_owner().context("Failed to determine repository owner from origin remote")?;
 
-    let remote_name = if pr_details.is_fork(&current_repo_owner) {
-        let fork_owner = &pr_details.head_repository_owner.login;
-        vcs.ensure_fork_remote(fork_owner)?
+    if pr_details.is_fork(&current_repo_owner) {
+        let (remote_branch, base_ref) = resolve_fork_pr_branch(pr_number, &pr_details, vcs)?;
+        Ok(PrCheckoutResult {
+            local_branch,
+            remote_branch,
+            base_ref,
+        })
     } else {
-        "origin".to_string()
-    };
+        // Same-repo PR: create() handles fetching from origin
+        Ok(PrCheckoutResult {
+            local_branch,
+            remote_branch: Some(format!("origin/{}", pr_details.head_ref_name)),
+            base_ref: None,
+        })
+    }
+}
 
-    // Note: We do not fetch here. The `create` workflow handles fetching
-    // the remote branch to ensure the worktree base is up to date.
-    let remote_branch = format!("{}/{}", remote_name, pr_details.head_ref_name);
+/// Resolve the remote branch for a fork PR.
+///
+/// Fetches from the fork remote and checks if the branch exists there.
+/// If not (e.g. the fork branch was deleted after PR creation), falls back
+/// to GitHub's `refs/pull/NNN/head` ref on the origin remote.
+/// Returns `(remote_branch, base_ref)` — exactly one will be `Some`.
+fn resolve_fork_pr_branch(
+    pr_number: u32,
+    pr_details: &github::PrDetails,
+    vcs: &dyn Vcs,
+) -> Result<(Option<String>, Option<String>)> {
+    let fork_owner = &pr_details.head_repository_owner.login;
+    let remote_name = vcs.ensure_fork_remote(fork_owner)?;
 
-    Ok(PrCheckoutResult {
-        local_branch,
-        remote_branch,
+    // Try fetching from the fork remote
+    let fork_fetch_ok = spinner::with_spinner(
+        &format!("Fetching from '{}'", remote_name),
+        || vcs.fetch_remote(&remote_name),
+    );
+
+    if let Ok(()) = fork_fetch_ok {
+        let remote_ref = format!("{}/{}", remote_name, pr_details.head_ref_name);
+        if vcs.branch_exists(&remote_ref)? {
+            return Ok((Some(remote_ref), None));
+        }
+        eprintln!(
+            "Branch '{}' not found on fork '{}', fetching PR ref from origin...",
+            pr_details.head_ref_name, fork_owner
+        );
+    } else {
+        eprintln!(
+            "Could not fetch from fork '{}', fetching PR ref from origin...",
+            fork_owner
+        );
+    }
+
+    // Fallback: fetch the PR head ref from origin (GitHub stores these at refs/pull/NNN/head).
+    // Store under refs/workmux/ to avoid being pruned by git fetch --prune on origin.
+    let pr_ref = format!("refs/workmux/pr-{}", pr_number);
+    spinner::with_spinner("Fetching PR ref from origin", || {
+        git::fetch_ref(
+            "origin",
+            &format!("refs/pull/{}/head", pr_number),
+            &pr_ref,
+        )
     })
+    .with_context(|| {
+        format!(
+            "Branch '{}' not found on fork '{}' and failed to fetch PR #{} ref from origin",
+            pr_details.head_ref_name, fork_owner, pr_number
+        )
+    })?;
+
+    // Resolve to a commit SHA so jj colocated repos can use it as a revision
+    let commit_sha = git::resolve_ref(&pr_ref)
+        .context("Failed to resolve fetched PR ref to commit")?;
+
+    Ok((None, Some(commit_sha)))
 }
 
 /// Result of resolving a fork branch.
