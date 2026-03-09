@@ -104,6 +104,14 @@ fn clear_ambient_git_env(command: &mut std::process::Command) {
     }
 }
 
+/// Resolve a git ref to its full commit SHA.
+pub fn resolve_ref(ref_name: &str) -> Result<String> {
+    Cmd::new("git")
+        .args(&["rev-parse", "--verify", ref_name])
+        .run_and_capture_stdout()
+        .with_context(|| format!("Failed to resolve ref '{}'", ref_name))
+}
+
 /// Get the common git directory (shared across all worktrees).
 ///
 /// This returns the absolute path where git stores shared data like refs, objects, and config.

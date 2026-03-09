@@ -58,6 +58,23 @@ pub fn fetch_remote_in(remote: &str, workdir: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
+/// Fetch a specific ref from a remote into a local ref target.
+///
+/// Runs `git fetch <remote> +<source>:<target>` with a force-update refspec.
+pub fn fetch_ref(remote: &str, source_ref: &str, target_ref: &str) -> Result<()> {
+    let refspec = format!("+{}:{}", source_ref, target_ref);
+    Cmd::new("git")
+        .args(&["fetch", remote, &refspec])
+        .run()
+        .with_context(|| {
+            format!(
+                "Failed to fetch ref '{}' from '{}'",
+                source_ref, remote
+            )
+        })?;
+    Ok(())
+}
+
 /// Fetch from remote with prune to update remote-tracking refs
 pub fn fetch_prune() -> Result<()> {
     Cmd::new("git")

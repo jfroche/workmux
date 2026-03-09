@@ -331,7 +331,7 @@ pub fn run(
 
     // Handle auto-name: load prompt first, generate branch name
     // In multi-worktree mode with auto-name, we defer LLM generation to the loop
-    let (final_branch_name, preloaded_prompt, remote_branch_for_pr, deferred_auto_name) =
+    let (final_branch_name, preloaded_prompt, remote_branch_for_pr, base_ref_for_pr, deferred_auto_name) =
         if auto_name {
             // Use editor if no prompt source specified, otherwise use provided source
             let use_editor = prompt_args.prompt.is_none() && prompt_args.prompt_file.is_none();
@@ -358,7 +358,7 @@ pub fn run(
 
             if is_explicit_multi || has_frontmatter_foreach {
                 // Defer LLM generation - use placeholder branch name
-                ("deferred".to_string(), Some(prompt), None, true)
+                ("deferred".to_string(), Some(prompt), None, None, true)
             } else {
                 // Single worktree mode - generate branch name now
                 let prompt_text = prompt.read_content()?;
@@ -367,7 +367,7 @@ pub fn run(
                     config_override,
                 )?;
                 let generated = generate_branch_name_with_spinner(Some(&prompt_text), &config)?;
-                (generated, Some(prompt), None, false)
+                (generated, Some(prompt), None, None, false)
             }
         } else if let Some(pr_reference) = pr {
             // Handle PR checkout if --pr flag is provided
@@ -377,7 +377,7 @@ pub fn run(
             } else {
                 workflow::pr::resolve_pr_ref(pr_number, branch_name, detected_vcs.as_ref())?
             };
-            (result.local_branch, None, Some(result.remote_branch), false)
+            (result.local_branch, None, result.remote_branch, result.base_ref, false)
         } else {
             // Normal flow: use provided branch name
             (
@@ -386,13 +386,14 @@ pub fn run(
                     .to_string(),
                 None,
                 None,
+                None,
                 false,
             )
         };
 
     // Use the determined branch name and override base if from PR
     let branch_name = &final_branch_name;
-    let cli_base = if remote_branch_for_pr.is_some() {
+    let cli_base = if remote_branch_for_pr.is_some() || base_ref_for_pr.is_some() {
         None
     } else {
         base
@@ -531,8 +532,12 @@ pub fn run(
     } else {
         detect_remote_branch(branch_name, cli_base, detected_vcs.clone())?
     };
+    // When using PR ref fallback (base_ref_for_pr), pass it as the base branch
+    // so create() uses it directly without fetch+verify semantics.
     let resolved_base = if remote_branch.is_some() {
         None
+    } else if let Some(ref pr_base) = base_ref_for_pr {
+        Some(pr_base.as_str())
     } else {
         cli_base.or(config_base)
     };
