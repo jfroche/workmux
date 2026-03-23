@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 
 use crate::workflow::file_ops::{handle_file_operations, symlink_claude_local_md};
-use crate::{config, git};
+use crate::{config, git, vcs};
 
 pub fn run(all: bool) -> Result<()> {
     let repo_root =
@@ -81,7 +81,8 @@ pub fn run(all: bool) -> Result<()> {
     for target in &targets {
         handle_file_operations(&file_ops_source, target, &config.files)
             .with_context(|| format!("Failed to sync files to {}", target.display()))?;
-        symlink_claude_local_md(&repo_root, target)
+        let vcs = vcs::detect_vcs().context("Failed to detect VCS")?;
+        symlink_claude_local_md(&repo_root, target, vcs.as_ref())
             .with_context(|| format!("Failed to sync CLAUDE.local.md to {}", target.display()))?;
 
         let name = target

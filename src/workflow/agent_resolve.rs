@@ -193,8 +193,8 @@ fn format_selector(handle: &str, project: Option<&str>) -> String {
 /// Resolve a worktree name to exactly one agent pane (the first/primary).
 ///
 /// Returns an error if no agent is running in the worktree.
-pub fn resolve_worktree_agent(name: &str, mux: &dyn Multiplexer, vcs: &dyn Vcs) -> Result<(PathBuf, AgentPane)> {
-    let (path, agents) = resolve_worktree_agents(name, mux, vcs)?;
+pub fn resolve_worktree_agent(name: &str, mux: &dyn Multiplexer, _vcs: &dyn Vcs) -> Result<(PathBuf, AgentPane)> {
+    let (path, agents) = resolve_worktree_agents(name, mux)?;
     let agent = agents
         .into_iter()
         .next()

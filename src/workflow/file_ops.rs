@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use crate::{config, git, vcs::Vcs};
+use crate::{config, vcs::Vcs};
 use tracing::info;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

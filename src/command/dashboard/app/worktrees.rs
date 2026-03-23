@@ -10,6 +10,7 @@ use anyhow::Context as _;
 
 use crate::git;
 use crate::multiplexer::Multiplexer;
+use crate::vcs;
 use crate::workflow;
 
 use super::super::agent;
@@ -371,7 +372,9 @@ impl App {
             return;
         }
 
-        let is_dirty = git::has_uncommitted_changes(&worktree.path).unwrap_or(false);
+        let is_dirty = vcs::try_detect_vcs()
+            .and_then(|v| v.has_uncommitted_changes(&worktree.path).ok())
+            .unwrap_or(false);
 
         self.pending_remove = Some(RemovePlan {
             handle: worktree.handle.clone(),
@@ -474,7 +477,9 @@ impl App {
             self.spawn_worktree_fetch();
         }
 
-        let gone = git::get_gone_branches().unwrap_or_default();
+        let gone = vcs::try_detect_vcs()
+            .and_then(|v| v.get_gone_branches().ok())
+            .unwrap_or_default();
 
         let mut candidates: Vec<SweepCandidate> = Vec::new();
 

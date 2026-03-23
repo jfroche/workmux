@@ -328,7 +328,7 @@ pub fn cleanup(
     // This avoids code duplication while enforcing the correct operational order.
     let perform_fs_git_cleanup = |result: &mut CleanupResult| -> Result<()> {
         // Resolve the admin dir before the rename so we can unlock it later.
-        let worktree_admin_dir = resolve_worktree_admin_dir(worktree_path, &context.git_common_dir);
+        let worktree_admin_dir = resolve_worktree_admin_dir(worktree_path, &context.shared_dir);
 
         // Run pre-remove hooks before removing the worktree directory.
         // Skip if the worktree directory doesn't exist (e.g., user manually deleted it).
@@ -537,7 +537,7 @@ pub fn cleanup(
 
             // Resolve the admin dir before the worktree is renamed.
             let worktree_admin_dir =
-                resolve_worktree_admin_dir(worktree_path, &context.git_common_dir);
+                resolve_worktree_admin_dir(worktree_path, &context.shared_dir);
 
             result.deferred_cleanup = Some(DeferredCleanup {
                 worktree_path: worktree_path.to_path_buf(),

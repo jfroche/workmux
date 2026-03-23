@@ -1,7 +1,7 @@
 use crate::command::args::{MultiArgs, PromptArgs, RescueArgs, SetupFlags};
 use crate::config::{MuxMode, SidebarPosition};
 use crate::workflow::pr::PrReference;
-use crate::{claude, command, config, nerdfont, vcs};
+use crate::{claude, command, config, git, nerdfont, vcs};
 use anyhow::{Context, Result};
 use clap::error::{ContextKind, ContextValue, ErrorKind};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
