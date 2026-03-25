@@ -209,8 +209,11 @@ impl Vcs for JjVcs {
             .to_string_lossy();
 
         if create_branch {
-            // Create workspace from base (or @)
-            let base_rev = base.unwrap_or("@");
+            // Create workspace from base (or @-)
+            // Use @- (parent of working copy) because @ in jj is the working
+            // copy commit itself — typically an empty placeholder. Starting from
+            // @- lands the new workspace on the last meaningful commit.
+            let base_rev = base.unwrap_or("@-");
 
             // First create the workspace
             jj_cmd(None)
