@@ -265,7 +265,7 @@ pub fn run(
             })?;
 
         // Use worktree root (not cwd) so subdirectory invocation works correctly
-        let source_path = git::get_repo_root()?;
+        let source_path = detected_vcs.get_repo_root()?;
         let session = if fork_arg.is_empty() {
             // --fork without value: use most recent
             forker

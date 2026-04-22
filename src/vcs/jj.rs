@@ -797,6 +797,7 @@ impl Vcs for JjVcs {
             behind: 0,
             has_conflict,
             is_dirty,
+            is_rebasing: false, // jj's equivalent (divergent changes) is modeled differently
             lines_added,
             lines_removed,
             uncommitted_added,

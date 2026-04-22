@@ -102,7 +102,7 @@ impl Vcs for GitVcs {
     }
 
     fn get_all_workspace_modes(&self) -> HashMap<String, MuxMode> {
-        git::get_all_worktree_modes()
+        git::get_all_worktree_modes_in(None)
     }
 
     fn remove_workspace_meta(&self, handle: &str) -> Result<()> {
