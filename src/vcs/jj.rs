@@ -120,6 +120,27 @@ fn read_jj_repo_config(repo_root: &Path) -> String {
     std::fs::read_to_string(config_path).unwrap_or_default()
 }
 
+/// Translate a git-style remote ref ("<remote>/<branch>") into jj's revset
+/// syntax ("<branch>@<remote>"). Returns the input unchanged if it doesn't
+/// match a remote known to the jj repo.
+fn jj_revset_for_ref(workdir: Option<&Path>, ref_name: &str) -> String {
+    let Some((prefix, rest)) = ref_name.split_once('/') else {
+        return ref_name.to_string();
+    };
+    let remotes = jj_cmd(workdir)
+        .args(&["git", "remote", "list"])
+        .run_and_capture_stdout()
+        .unwrap_or_default();
+    let is_remote = remotes
+        .lines()
+        .any(|line| line.split_whitespace().next() == Some(prefix));
+    if is_remote {
+        format!("{}@{}", rest, prefix)
+    } else {
+        ref_name.to_string()
+    }
+}
+
 impl Vcs for JjVcs {
     fn name(&self) -> &str {
         "jj"
@@ -213,7 +234,8 @@ impl Vcs for JjVcs {
             // Use @- (parent of working copy) because @ in jj is the working
             // copy commit itself — typically an empty placeholder. Starting from
             // @- lands the new workspace on the last meaningful commit.
-            let base_rev = base.unwrap_or("@-");
+            let base_rev_owned = base.map(|b| jj_revset_for_ref(None, b));
+            let base_rev = base_rev_owned.as_deref().unwrap_or("@-");
 
             // First create the workspace
             jj_cmd(None)
@@ -574,13 +596,25 @@ impl Vcs for JjVcs {
             None => find_jj_root()?,
         };
 
-        // Use jj bookmark list with exact name filter
+        // Strip the git-style "refs/heads/" prefix so callers using either
+        // jj-native names or fully-qualified git refs both work.
+        let needle = name.strip_prefix("refs/heads/").unwrap_or(name);
+
+        // Output local bookmarks as "<name>" and remote-tracking ones as
+        // "<remote>/<name>" so callers using either jj's native style
+        // ("auto_update_deps") or git-style ("origin/auto_update_deps") match.
         let output = jj_cmd(Some(&root))
-            .args(&["bookmark", "list", "--all", "-T", "name ++ \"\\n\""])
+            .args(&[
+                "bookmark",
+                "list",
+                "--all",
+                "-T",
+                "if(remote, remote ++ \"/\" ++ name, name) ++ \"\\n\"",
+            ])
             .run_and_capture_stdout()
             .unwrap_or_default();
 
-        Ok(output.lines().any(|line| line.trim() == name))
+        Ok(output.lines().any(|line| line.trim() == needle))
     }
 
     fn get_current_branch(&self) -> Result<String> {
