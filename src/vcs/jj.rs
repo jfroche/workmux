@@ -249,17 +249,16 @@ impl Vcs for JjVcs {
                 .run()
                 .with_context(|| format!("Failed to create bookmark '{}'", branch))?;
         } else {
-            // Branch already exists - create workspace and edit the bookmark's change
+            // Branch already exists - create workspace starting at the branch's revision.
+            // Using --revision positions the new workspace's working copy on a fresh
+            // mutable commit parented on the branch. This works for both mutable local
+            // bookmarks and immutable remote-tracking bookmarks, where `jj edit` would
+            // fail with "Commit is immutable".
+            let branch_rev = jj_revset_for_ref(None, branch);
             jj_cmd(None)
-                .args(&["workspace", "add", path_str, "--name", &handle])
+                .args(&["workspace", "add", path_str, "--name", &handle, "--revision", &branch_rev])
                 .run()
                 .context("Failed to create jj workspace")?;
-
-            // Edit the existing bookmark's change in the new workspace
-            jj_cmd(Some(path))
-                .args(&["edit", branch])
-                .run()
-                .with_context(|| format!("Failed to edit bookmark '{}' in workspace", branch))?;
         }
 
         // Store the path in workmux metadata for later lookup
