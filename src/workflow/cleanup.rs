@@ -226,15 +226,15 @@ pub fn cleanup(
     // Determine if this worktree was created as a session or window
     let mode = context.vcs.get_workspace_mode(handle);
     let target_name = if mode == MuxMode::Session {
-        git::get_worktree_target_session(handle).unwrap_or_else(|| handle.to_string())
+        context.vcs.get_workspace_meta(handle, "target-session").unwrap_or_else(|| handle.to_string())
     } else {
-        git::get_worktree_target_window(handle).unwrap_or_else(|| handle.to_string())
+        context.vcs.get_workspace_meta(handle, "target-window").unwrap_or_else(|| handle.to_string())
     };
     let is_session_mode = mode == MuxMode::Session;
     let parent_session = if is_session_mode {
         None
     } else {
-        git::get_worktree_window_session(handle)
+        context.vcs.get_workspace_meta(handle, "window-session")
     };
     let kind = crate::multiplexer::handle::mode_label(mode);
 

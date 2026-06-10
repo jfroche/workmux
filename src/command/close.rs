@@ -37,13 +37,14 @@ pub fn run(name: Option<&str>) -> Result<()> {
     // Determine if this worktree was created as a session or window
     let mode = vcs.get_workspace_mode(&resolved_handle);
     let target_name = if mode == crate::config::MuxMode::Session {
-        git::get_worktree_target_session(&resolved_handle)
+        vcs.get_workspace_meta(&resolved_handle, "target-session")
             .unwrap_or_else(|| resolved_handle.clone())
     } else {
-        git::get_worktree_target_window(&resolved_handle).unwrap_or_else(|| resolved_handle.clone())
+        vcs.get_workspace_meta(&resolved_handle, "target-window")
+            .unwrap_or_else(|| resolved_handle.clone())
     };
     let window_session = if mode == crate::config::MuxMode::Window {
-        git::get_worktree_window_session(&resolved_handle)
+        vcs.get_workspace_meta(&resolved_handle, "window-session")
     } else {
         None
     };

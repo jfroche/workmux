@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 
 /// Check if a path is registered as a workspace with the VCS.
 /// Uses canonicalize() to handle symlinks, case sensitivity, and relative paths.
-fn is_registered_workspace(vcs: &dyn Vcs, path: &Path, context: &WorkflowContext) -> Result<bool> {
+fn is_registered_workspace(vcs: &dyn Vcs, path: &Path) -> Result<bool> {
     // Canonicalize the input path for reliable comparison
     let abs_path = match std::fs::canonicalize(path) {
         Ok(p) => p,

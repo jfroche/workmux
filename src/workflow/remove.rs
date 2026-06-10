@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use std::path::PathBuf;
 
-use crate::sandbox;
+use crate::{git, sandbox};
 use tracing::{debug, info};
 
 use super::cleanup;
@@ -28,7 +28,7 @@ pub fn fallback_worktree_path(handle: &str, context: &WorkflowContext) -> Result
     let Some(admin_dir) = git::linked_worktree_admin_dir(&path) else {
         return Ok(None);
     };
-    let expected_parent = context.git_common_dir.join("worktrees");
+    let expected_parent = context.shared_dir.join("worktrees");
     Ok((!admin_dir.is_dir() && admin_dir.starts_with(expected_parent)).then_some(path))
 }
 
