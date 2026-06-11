@@ -11,11 +11,21 @@ use super::{Vcs, VcsStatus};
 /// Git implementation of the Vcs trait.
 ///
 /// Delegates to the existing `git::*` module functions.
-pub struct GitVcs;
+pub struct GitVcs {
+    workdir: Option<PathBuf>,
+}
 
 impl GitVcs {
     pub fn new() -> Self {
-        GitVcs
+        GitVcs { workdir: None }
+    }
+
+    pub fn new_in(workdir: PathBuf) -> Self {
+        GitVcs { workdir: Some(workdir) }
+    }
+
+    fn workdir(&self) -> Option<&Path> {
+        self.workdir.as_deref()
     }
 }
 
@@ -43,11 +53,11 @@ impl Vcs for GitVcs {
     }
 
     fn get_main_workspace_root(&self) -> Result<PathBuf> {
-        git::get_main_worktree_root()
+        git::get_main_worktree_root_in(self.workdir())
     }
 
     fn get_shared_dir(&self) -> Result<PathBuf> {
-        git::get_git_common_dir()
+        git::get_git_common_dir_in(self.workdir())
     }
 
     fn is_path_ignored(&self, repo_path: &Path, file_path: &str) -> bool {
@@ -112,7 +122,7 @@ impl Vcs for GitVcs {
     // ── Branch/bookmark operations ───────────────────────────────────
 
     fn get_default_branch(&self) -> Result<String> {
-        git::get_default_branch()
+        git::get_default_branch_in(self.workdir())
     }
 
     fn get_default_branch_in(&self, workdir: Option<&Path>) -> Result<String> {
