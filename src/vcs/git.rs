@@ -67,7 +67,7 @@ impl Vcs for GitVcs {
     // ── Workspace lifecycle ──────────────────────────────────────────
 
     fn workspace_exists(&self, branch_name: &str) -> Result<bool> {
-        git::worktree_exists(branch_name)
+        git::worktree_exists_in(branch_name, self.workdir())
     }
 
     fn create_workspace(
@@ -78,19 +78,19 @@ impl Vcs for GitVcs {
         base: Option<&str>,
         track_upstream: bool,
     ) -> Result<()> {
-        git::create_worktree(path, branch, create_branch, base, track_upstream)
+        git::create_worktree_in(path, branch, create_branch, base, track_upstream, self.workdir())
     }
 
     fn list_workspaces(&self) -> Result<Vec<(PathBuf, String)>> {
-        git::list_worktrees()
+        git::list_worktrees_in(self.workdir())
     }
 
     fn find_workspace(&self, name: &str) -> Result<(PathBuf, String)> {
-        git::find_worktree(name)
+        git::find_worktree_in(name, self.workdir())
     }
 
     fn get_workspace_path(&self, branch: &str) -> Result<PathBuf> {
-        git::get_worktree_path(branch)
+        git::get_worktree_path_in(branch, self.workdir())
     }
 
     fn prune_workspaces(&self, shared_dir: &Path) -> Result<()> {
@@ -130,7 +130,7 @@ impl Vcs for GitVcs {
     }
 
     fn branch_exists(&self, name: &str) -> Result<bool> {
-        git::branch_exists(name)
+        git::branch_exists_in(name, self.workdir())
     }
 
     fn branch_exists_in(&self, name: &str, workdir: Option<&Path>) -> Result<bool> {
