@@ -245,7 +245,13 @@ pub trait Vcs: Send + Sync {
 /// Prefers jj if both are found (colocated repo).
 pub fn detect_vcs() -> Result<Arc<dyn Vcs>> {
     let cwd = std::env::current_dir()?;
-    for dir in cwd.ancestors() {
+    detect_vcs_from(&cwd)
+}
+
+/// Walks up from `start` looking for `.jj/` or `.git/` directories.
+/// Prefers jj if both are found (colocated repo).
+pub fn detect_vcs_from(start: &Path) -> Result<Arc<dyn Vcs>> {
+    for dir in start.ancestors() {
         if dir.join(".jj").is_dir() {
             return Ok(Arc::new(JjVcs::new()));
         }

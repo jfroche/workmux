@@ -57,7 +57,7 @@ impl WorkflowContext {
             )
         })?;
 
-        let vcs = vcs::detect_vcs()?;
+        let vcs = vcs::detect_vcs_from(&execution_dir)?;
 
         let main_worktree_root =
             vcs.get_main_workspace_root().context("Could not find the main worktree")?;
