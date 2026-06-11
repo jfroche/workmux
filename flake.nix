@@ -44,9 +44,14 @@
 
             # These tests rely on CWD being inside a git repo, which
             # doesn't hold in the Nix sandbox (source is copied, not cloned).
+            # The pi agent tests call xdg::state_dir() + create_dir_all which
+            # fails in the Nix sandbox (read-only FS, no real HOME).
             checkFlags = [
               "--skip=config::tests::find_project_config_from_subdir"
               "--skip=config::tests::find_project_config_nearest_wins"
+              "--skip=sandbox::container::tests::test_build_args_pi_agent_apple_container_mounts_config_dir"
+              "--skip=sandbox::container::tests::test_build_args_pi_agent_overlays_bin_after_parent"
+              "--skip=sandbox::lima::mounts::tests::test_pi_agent_appends_bin_overlay_after_parent"
             ];
 
             postInstall = ''
