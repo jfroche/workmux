@@ -256,7 +256,7 @@ pub fn detect_vcs_from(start: &Path) -> Result<Arc<dyn Vcs>> {
             return Ok(Arc::new(JjVcs::new()));
         }
         if dir.join(".git").exists() {
-            return Ok(Arc::new(GitVcs::new()));
+            return Ok(Arc::new(GitVcs::new_in(dir.to_path_buf())));
         }
     }
     Err(anyhow!("Not in a git or jj repository"))
