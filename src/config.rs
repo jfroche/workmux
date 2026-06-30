@@ -1849,7 +1849,14 @@ pub struct ConfigLocation {
     pub rel_dir: PathBuf,
 }
 
-/// Find the nearest .workmux.yaml by walking up from start_dir to repo root.
+/// Find the nearest .workmux.yaml by walking up from start_dir.
+///
+/// Search order:
+/// 1. Walk up from `start_dir` to the VCS repo root (inclusive)
+/// 2. Check the main worktree root (for linked worktrees)
+/// 3. Walk up from the repo root's parent toward the filesystem root (max 5 levels)
+///    — enables a shared `.workmux.yaml` above sibling worktrees
+///
 /// Returns ConfigLocation with the relative path computed at discovery time.
 pub fn find_project_config(start_dir: &Path) -> anyhow::Result<Option<ConfigLocation>> {
     let config_names = [".workmux.yaml", ".workmux.yml"];
@@ -1918,6 +1925,30 @@ pub fn find_project_config(start_dir: &Path) -> anyhow::Result<Option<ConfigLoca
                         rel_dir: PathBuf::new(), // Main worktree root = empty rel_dir
                     }));
                 }
+            }
+        }
+    }
+
+    // Final fallback: walk above the repo root toward filesystem root (max 5 levels).
+    // This enables a shared .workmux.yaml alongside sibling worktrees, e.g.:
+    //   /projects/hexagon/paragon/.workmux.yaml
+    //   /projects/hexagon/paragon/main/       (repo worktree)
+    //   /projects/hexagon/paragon/feature-x/  (repo worktree)
+    const MAX_ABOVE_REPO_LEVELS: usize = 5;
+    let mut above_dir = repo_root.clone();
+    for _ in 0..MAX_ABOVE_REPO_LEVELS {
+        if !above_dir.pop() {
+            break; // reached filesystem root
+        }
+        for name in &config_names {
+            let candidate = above_dir.join(name);
+            if candidate.exists() {
+                debug!(path = %candidate.display(), "config:found above-repo config");
+                return Ok(Some(ConfigLocation {
+                    config_path: candidate,
+                    config_dir: above_dir,
+                    rel_dir: PathBuf::new(),
+                }));
             }
         }
     }
@@ -3487,6 +3518,7 @@ agents:
 
     use super::find_project_config;
     use std::fs;
+    use std::path::PathBuf;
 
     #[test]
     fn find_project_config_from_subdir() {
@@ -3532,6 +3564,88 @@ agents:
         let backend_config = backend.join(".workmux.yaml").canonicalize().unwrap();
         assert_eq!(loc.config_path, backend_config);
         assert_eq!(loc.config_dir, backend.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn find_project_config_above_repo_root() {
+        // Simulate sibling worktrees: parent_dir/{.workmux.yaml, repo/}
+        let temp = TempDir::new().unwrap();
+        let parent = temp.path().to_path_buf();
+
+        // Create the git repo as a subdirectory
+        let repo = parent.join("my-repo");
+        fs::create_dir_all(&repo).unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        // Place .workmux.yaml in the parent (above repo root)
+        fs::write(parent.join(".workmux.yaml"), "agent: shared").unwrap();
+
+        // Should find the above-repo config
+        let result = find_project_config(&repo).unwrap();
+        assert!(result.is_some());
+        let loc = result.unwrap();
+        assert_eq!(
+            loc.config_path.canonicalize().unwrap(),
+            parent.join(".workmux.yaml").canonicalize().unwrap()
+        );
+        assert_eq!(loc.rel_dir, PathBuf::new());
+    }
+
+    #[test]
+    fn find_project_config_in_repo_beats_above_repo() {
+        // If there's a config in the repo AND above, the in-repo one wins
+        let temp = TempDir::new().unwrap();
+        let parent = temp.path().to_path_buf();
+
+        let repo = parent.join("my-repo");
+        fs::create_dir_all(&repo).unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        // Config in both places
+        fs::write(parent.join(".workmux.yaml"), "agent: parent").unwrap();
+        fs::write(repo.join(".workmux.yaml"), "agent: repo").unwrap();
+
+        let result = find_project_config(&repo).unwrap();
+        assert!(result.is_some());
+        let loc = result.unwrap();
+        // In-repo config should win
+        assert_eq!(
+            loc.config_path.canonicalize().unwrap(),
+            repo.join(".workmux.yaml").canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn find_project_config_above_repo_yml_variant() {
+        let temp = TempDir::new().unwrap();
+        let parent = temp.path().to_path_buf();
+
+        let repo = parent.join("my-repo");
+        fs::create_dir_all(&repo).unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        // Use .yml variant
+        fs::write(parent.join(".workmux.yml"), "agent: shared").unwrap();
+
+        let result = find_project_config(&repo).unwrap();
+        assert!(result.is_some());
+        let loc = result.unwrap();
+        assert_eq!(
+            loc.config_path.canonicalize().unwrap(),
+            parent.join(".workmux.yml").canonicalize().unwrap()
+        );
     }
 
     #[test]
