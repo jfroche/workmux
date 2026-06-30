@@ -131,7 +131,7 @@ pub fn format_agent_status_summary(
 /// the leading separator if needed.
 fn add_uncommitted_spans(
     spans: &mut Vec<(String, Style)>,
-    status: &GitStatus,
+    status: &VcsStatus,
     icons: &GitIcons,
     palette: &ThemePalette,
 ) {
