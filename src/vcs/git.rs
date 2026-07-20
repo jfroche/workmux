@@ -100,11 +100,11 @@ impl Vcs for GitVcs {
     // ── Workspace metadata ───────────────────────────────────────────
 
     fn set_workspace_meta(&self, handle: &str, key: &str, value: &str) -> Result<()> {
-        git::set_worktree_meta(handle, key, value)
+        git::set_worktree_meta_in(handle, key, value, self.workdir())
     }
 
     fn get_workspace_meta(&self, handle: &str, key: &str) -> Option<String> {
-        git::get_worktree_meta(handle, key)
+        git::get_worktree_meta_in(handle, key, self.workdir())
     }
 
     fn get_workspace_mode(&self, handle: &str) -> MuxMode {
@@ -112,7 +112,7 @@ impl Vcs for GitVcs {
     }
 
     fn get_all_workspace_modes(&self) -> HashMap<String, MuxMode> {
-        git::get_all_worktree_modes_in(None)
+        git::get_all_worktree_modes_in(self.workdir())
     }
 
     fn remove_workspace_meta(&self, handle: &str) -> Result<()> {
@@ -164,7 +164,7 @@ impl Vcs for GitVcs {
     // ── Base branch tracking ─────────────────────────────────────────
 
     fn set_branch_base(&self, branch: &str, base: &str) -> Result<()> {
-        git::set_branch_base(branch, base)
+        git::set_branch_base_in(branch, base, self.workdir())
     }
 
     fn get_branch_base(&self, branch: &str) -> Result<String> {

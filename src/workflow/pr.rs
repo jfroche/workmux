@@ -258,7 +258,8 @@ pub fn resolve_pr_ref_dry_run(
     });
     Ok(PrCheckoutResult {
         local_branch,
-        remote_branch: format!("{}/{}", remote_name, pr_details.head_ref_name),
+        remote_branch: Some(format!("{}/{}", remote_name, pr_details.head_ref_name)),
+        base_ref: None,
     })
 }
 

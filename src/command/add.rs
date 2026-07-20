@@ -10,7 +10,7 @@ use crate::template::{
 use crate::workflow::SetupOptions;
 use crate::workflow::pr::{PrReference, detect_remote_branch, detect_remote_branch_dry_run};
 use crate::workflow::prompt_loader::{PromptLoadArgs, load_prompt, parse_prompt_with_frontmatter};
-use crate::{config, vcs, workflow};
+use crate::{config, git, vcs, workflow};
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
 use std::collections::BTreeMap;

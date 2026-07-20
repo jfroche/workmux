@@ -68,6 +68,7 @@ unicode-width = "0.2"
 signal-hook = "0.4"
 notify = "9.0.0-rc.3"
 ignore = "0.4"
+git-url-parse = "0.6.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys = "0.6"
