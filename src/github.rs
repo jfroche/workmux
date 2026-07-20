@@ -392,11 +392,6 @@ pub fn list_open_prs(repo_root: &Path) -> Result<Vec<PrListEntry>> {
         .collect())
 }
 
-/// Fetches pull request details using the GitHub CLI
-pub fn get_pr_details(pr_number: u32) -> Result<PrDetails> {
-    get_pr_details_in(None, pr_number)
-}
-
 /// Fetches pull request details using the GitHub CLI in a specific repository path
 pub fn get_pr_details_in(repo_root: Option<&Path>, pr_number: u32) -> Result<PrDetails> {
     // Fetch PR details using gh CLI

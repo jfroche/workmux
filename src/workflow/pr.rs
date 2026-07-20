@@ -3,6 +3,7 @@
 //! This module extracts domain logic for resolving pull requests and fork branches
 //! from the command layer, making it reusable and testable.
 
+use crate::forge::Forge;
 use crate::{git, github, spinner};
 use crate::vcs::Vcs;
 use anyhow::{Context, Result, anyhow};
@@ -112,8 +113,9 @@ pub fn resolve_pr_ref(
     custom_branch_name: Option<&str>,
     vcs: &dyn Vcs,
 ) -> Result<PrCheckoutResult> {
+    let forge = Forge::detect(None)?;
     let pr_details = spinner::with_spinner(&format!("Fetching PR #{}", pr_number), || {
-        github::get_pr_details(pr_number)
+        forge.get_pr_details(None, pr_number)
     })
     .with_context(|| format!("Failed to fetch details for PR #{}", pr_number))?;
 
@@ -152,7 +154,8 @@ pub fn resolve_pr_ref(
     });
 
     if is_fork {
-        let (remote_branch, base_ref) = resolve_fork_pr_branch(pr_number, &pr_details, vcs)?;
+        let (remote_branch, base_ref) =
+            resolve_fork_pr_branch(pr_number, &pr_details, vcs, forge)?;
         Ok(PrCheckoutResult {
             local_branch,
             remote_branch,
@@ -178,6 +181,7 @@ fn resolve_fork_pr_branch(
     pr_number: u32,
     pr_details: &github::PrDetails,
     vcs: &dyn Vcs,
+    forge: Forge,
 ) -> Result<(Option<String>, Option<String>)> {
     let fork_owner = &pr_details.head_repository_owner.login;
     let remote_name = vcs.ensure_fork_remote(fork_owner)?;
@@ -207,12 +211,9 @@ fn resolve_fork_pr_branch(
     // Fallback: fetch the PR head ref from origin (GitHub stores these at refs/pull/NNN/head).
     // Store under refs/workmux/ to avoid being pruned by git fetch --prune on origin.
     let pr_ref = format!("refs/workmux/pr-{}", pr_number);
+    let source_ref = forge.pr_head_ref(pr_number);
     spinner::with_spinner("Fetching PR ref from origin", || {
-        git::fetch_ref(
-            "origin",
-            &format!("refs/pull/{}/head", pr_number),
-            &pr_ref,
-        )
+        git::fetch_ref("origin", &source_ref, &pr_ref)
     })
     .with_context(|| {
         format!(
@@ -232,8 +233,9 @@ pub fn resolve_pr_ref_dry_run(
     pr_number: u32,
     custom_branch_name: Option<&str>,
 ) -> Result<PrCheckoutResult> {
+    let forge = Forge::detect(None)?;
     let pr_details = spinner::with_spinner(&format!("Fetching PR #{}", pr_number), || {
-        github::get_pr_details(pr_number)
+        forge.get_pr_details(None, pr_number)
     })
     .with_context(|| format!("Failed to fetch details for PR #{}", pr_number))?;
     println!("PR #{}: {}", pr_number, pr_details.title);

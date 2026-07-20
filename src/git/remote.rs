@@ -372,6 +372,14 @@ pub fn get_repo_owner_in(workdir: Option<&Path>) -> Result<String> {
         .map(|s| s.to_string())
 }
 
+/// Get the host (e.g. "github.com", "gitlab.com") from the origin remote URL.
+pub fn get_origin_host_in(workdir: Option<&Path>) -> Result<String> {
+    let url = get_remote_url_in("origin", workdir)?;
+    parse_git_remote_url(&url)
+        .map(|parsed| parsed.host.to_string())
+        .ok_or_else(|| anyhow!("Could not parse host from origin URL: {}", url))
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_owner_from_git_url;
